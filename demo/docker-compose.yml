@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  web1:
+    image: nginx:alpine
+    ports:
+      - "8081:80"
+  web2:
+    image: nginx:alpine
+    ports:
+      - "8082:80"
+  web3:
+    image: nginx:alpine
+    ports:
+      - "8083:80"
+  redis1:
+    image: redis:alpine
+  redis2:
+    image: redis:alpine
+  postgres:
+    image: postgres:alpine
+    environment:
+      POSTGRES_PASSWORD: example
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+  mongo:
+    image: mongo:4
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
