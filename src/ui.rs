@@ -60,6 +60,8 @@ pub struct DrawContext<'a> {
     pub memory_history: &'a [u64],
     pub disk_read_history: &'a [u64],
     pub disk_write_history: &'a [u64],
+    pub follow_mode: bool,
+    pub scroll_offset: usize,
 }
 
 pub fn draw_ui(f: &mut Frame, context: DrawContext) {
@@ -72,12 +74,25 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
     let output_text = context.output_lines.join("\n");
     let output_block = Block::default()
         .borders(Borders::ALL)
-        .title("Output")
+        .title(if context.follow_mode { "Output (Follow)" } else { "Output (Scroll)" })
         .border_style(Style::default().fg(context.theme.primary))
         .title_style(Style::default().fg(context.theme.primary).add_modifier(Modifier::BOLD));
+
+    // Calculate scroll position
+    let total_lines = context.output_lines.len();
+    let visible_height = main_rect.height.saturating_sub(2) as usize; // Subtract border height
+    let scroll_pos = if context.follow_mode {
+        // In follow mode, scroll to show the latest lines
+        total_lines.saturating_sub(visible_height)
+    } else {
+        // In scroll mode, scroll_offset is lines scrolled up from bottom
+        (total_lines.saturating_sub(visible_height)).saturating_sub(context.scroll_offset)
+    };
+
     let output_paragraph = Paragraph::new(output_text)
         .block(output_block)
-        .wrap(Wrap { trim: true });
+        .wrap(Wrap { trim: true })
+        .scroll((scroll_pos as u16, 0));
     f.render_widget(output_paragraph, main_rect);
 
     // Draw sidebar with border

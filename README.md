@@ -113,6 +113,8 @@ This starts multiple services (nginx, redis, postgres, mysql, mongo) and display
 ## Key Bindings
 
 - `Ctrl+C`: Gracefully terminate the running process
+- `PageDown`: Scroll down one page (exits follow mode)
+- `Escape`: Return to end of log and resume following
 - `q`: Quit (when process has finished)
 
 

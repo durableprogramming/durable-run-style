@@ -28,6 +28,7 @@ pub struct App {
     output_rx: mpsc::UnboundedReceiver<String>,
     terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
     current_width: u16,
+    current_height: u16,
     animation_frame: u32,
     system: System,
     network_stats_rx: Option<mpsc::UnboundedReceiver<(u64, u64)>>,
@@ -45,6 +46,9 @@ pub struct App {
     display_disk_write: u64,
     iteration_count: u32,
     command: Vec<String>,
+    // Output scrolling state
+    follow_mode: bool,
+    scroll_offset: usize,
 }
 
 impl App {
@@ -86,7 +90,7 @@ impl App {
         };
 
         // Get terminal size
-        let (width, _height) = crossterm::terminal::size()?;
+        let (width, height) = crossterm::terminal::size()?;
         let sidebar_width = config.app.layout.sidebar_width;
         let app_width = width.saturating_sub(sidebar_width);
 
@@ -127,6 +131,7 @@ impl App {
         let terminal = Terminal::new(backend)?;
 
         let current_width = width;
+        let current_height = height;
         let animation_frame = 0;
         let system = System::new_all();
         let start_time = Instant::now();
@@ -140,6 +145,8 @@ impl App {
         let display_disk_read = 0;
         let display_disk_write = 0;
         let iteration_count = 0;
+        let follow_mode = true; // Start in follow mode
+        let scroll_offset = 0;
 
         Ok(App {
             args,
@@ -150,6 +157,7 @@ impl App {
             output_rx,
             terminal,
             current_width,
+            current_height,
             animation_frame,
             system,
             network_stats_rx,
@@ -165,6 +173,8 @@ impl App {
             display_disk_write,
             iteration_count,
             command,
+            follow_mode,
+            scroll_offset,
         })
     }
 
@@ -192,14 +202,72 @@ impl App {
                         match event::read()? {
                             Event::Resize(new_width, new_height) => {
                                 self.current_width = new_width;
+                                self.current_height = new_height;
                                 self.terminal.resize(ratatui::layout::Rect::new(0, 0, self.current_width, new_height))?;
                             }
-                            Event::Key(key) => {
-                                if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-                                    let _ = self.process_manager.kill().await;
-                                    break;
-                                }
-                            }
+                             Event::Key(key) => {
+                                 let page_height = (self.current_height.saturating_sub(4) as usize).min(20);
+                                 let total_lines = self.output_lines.len();
+                                 let visible_height = page_height;
+                                 let max_scroll_up = total_lines.saturating_sub(visible_height);
+                                 match key.code {
+                                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                         let _ = self.process_manager.kill().await;
+                                         break;
+                                     }
+                                     KeyCode::Char('f') => {
+                                         // Toggle follow mode
+                                         self.follow_mode = !self.follow_mode;
+                                         if self.follow_mode {
+                                             self.scroll_offset = 0;
+                                         }
+                                     }
+                                     KeyCode::Up => {
+                                         // Scroll up by one line
+                                         if self.follow_mode {
+                                             self.follow_mode = false;
+                                         }
+                                         self.scroll_offset += 1;
+                                     }
+                                     KeyCode::Down => {
+                                         // Scroll down by one line
+                                         self.scroll_offset = self.scroll_offset.saturating_sub(1);
+                                         if self.scroll_offset == 0 {
+                                             self.follow_mode = true;
+                                         }
+                                     }
+                                     KeyCode::PageUp => {
+                                         // Scroll up by page height
+                                         if self.follow_mode {
+                                             self.follow_mode = false;
+                                         }
+                                         self.scroll_offset += page_height;
+                                     }
+                                     KeyCode::PageDown => {
+                                         // Scroll down by page height
+                                         self.scroll_offset = self.scroll_offset.saturating_sub(page_height);
+                                         if self.scroll_offset == 0 {
+                                             self.follow_mode = true;
+                                         }
+                                     }
+                                     KeyCode::Home => {
+                                         // Scroll to top
+                                         self.follow_mode = false;
+                                         self.scroll_offset = max_scroll_up;
+                                     }
+                                     KeyCode::End => {
+                                         // Scroll to bottom and enable follow mode
+                                         self.follow_mode = true;
+                                         self.scroll_offset = 0;
+                                     }
+                                     KeyCode::Esc => {
+                                         // Return to end of log and enable follow mode
+                                         self.follow_mode = true;
+                                         self.scroll_offset = 0;
+                                     }
+                                     _ => {}
+                                 }
+                             }
                             _ => {}
                         }
                     }
@@ -305,6 +373,8 @@ impl App {
                             memory_history: &self.memory_history,
                             disk_read_history: &self.disk_read_history,
                             disk_write_history: &self.disk_write_history,
+                            follow_mode: self.follow_mode,
+                            scroll_offset: self.scroll_offset,
                         });
                     })?;
 
