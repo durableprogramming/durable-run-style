@@ -156,7 +156,7 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
     let mut lines = Vec::new();
 
     // Header with shine effect
-    let header_lines: Vec<&str> = include_str!("../ascii_art.txt").lines().filter(|line| !line.trim().is_empty()).collect();
+    let header_lines: Vec<&str> = include_str!("../static/top_art.txt").lines().filter(|line| !line.trim().is_empty()).collect();
     let content_width = inner_area.width as usize;
     let remaining_width = content_width - 11;
     let shine_width = 3.0;
@@ -326,6 +326,81 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
             network_text,
             Style::default().fg(context.theme.accent),
         )));
+    }
+
+    // Add bottom art, aligned to the bottom
+    let bottom_art_lines: Vec<&str> = include_str!("../static/bottom_art.txt").lines().filter(|line| !line.trim().is_empty()).collect();
+    if !bottom_art_lines.is_empty() {
+        let bottom_art_height = 1 + bottom_art_lines.len(); // empty line + art lines
+        let current_lines_height = lines.len();
+        let total_needed = current_lines_height + bottom_art_height;
+        let padding_needed = if total_needed <= inner_area.height as usize {
+            inner_area.height as usize - total_needed
+        } else {
+            0
+        };
+        // Add padding lines to push bottom art to the bottom
+        for _ in 0..padding_needed {
+            lines.push(Line::from(""));
+        }
+        // Empty line before bottom art
+        lines.push(Line::from(""));
+
+        let shine_width = 3.0;
+        let total_cycle_frames = 110;
+        let cycle_frame = context.animation_frame % total_cycle_frames;
+
+        let mut bottom_line_len = 0;
+        for line in &bottom_art_lines {
+            if bottom_line_len == 0 {
+                bottom_line_len = line.chars().count();
+            }
+        }
+
+        for line in bottom_art_lines {
+            let total_pad = content_width.saturating_sub(bottom_line_len);
+            let left_pad = total_pad / 2;
+            let right_pad = total_pad - left_pad;
+            let padded_line = format!("{}{}{}", " ".repeat(left_pad), line, " ".repeat(right_pad));
+            let line_len_f32 = padded_line.chars().count() as f32;
+            let shine_position = if cycle_frame < 30 {
+                // moving left to right
+                let progress = cycle_frame as f32 / 29.0;
+                progress * (line_len_f32 + shine_width * 2.0) - shine_width
+            } else if cycle_frame < 55 {
+                // pause at right
+                line_len_f32 + shine_width
+            } else if cycle_frame < 85 {
+                // moving right to left
+                let progress = (cycle_frame - 55) as f32 / 29.0;
+                (1.0 - progress) * (line_len_f32 + shine_width * 2.0) - shine_width
+            } else {
+                // pause at left
+                -shine_width
+            };
+
+            let mut spans = Vec::new();
+            for (char_idx, ch) in padded_line.chars().enumerate() {
+                let distance_from_shine = (char_idx as f32 - shine_position).abs();
+                let shine_intensity = if distance_from_shine <= shine_width {
+                    (1.0 - (distance_from_shine / shine_width)) * 0.5
+                } else {
+                    0.0
+                };
+
+                let color = if shine_intensity > 0.0 {
+                    blend_colors(context.theme.primary, ratatui::style::Color::White, shine_intensity)
+                } else {
+                    context.theme.primary
+                };
+
+                spans.push(Span::styled(
+                    ch.to_string(),
+                    Style::default().fg(color).add_modifier(Modifier::BOLD),
+                ));
+            }
+            lines.push(Line::from(spans));
+        }
     }
 
     let paragraph = Paragraph::new(lines);

@@ -67,7 +67,7 @@ impl App {
         }
 
         // Calculate min sidebar width based on header
-        let header_content = include_str!("../ascii_art.txt");
+        let header_content = include_str!("../static/top_art.txt");
         let header_lines: Vec<&str> = header_content.lines().filter(|line| !line.trim().is_empty()).collect();
         let max_len = header_lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
         let min_content_width = max_len + 2;
