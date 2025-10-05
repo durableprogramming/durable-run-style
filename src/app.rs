@@ -46,6 +46,7 @@ pub struct App {
     display_disk_write: u64,
     iteration_count: u32,
     command: Vec<String>,
+    pwd: String,
     // Output scrolling state
     follow_mode: bool,
     scroll_offset: usize,
@@ -75,6 +76,7 @@ impl App {
 
         // Override config with command line arguments
         config.app.layout.sidebar_width = effective_sidebar_width;
+        config.app.layout.max_command_lines = args.max_command_lines;
         config.app.output.max_output_lines = args.max_output_lines;
         if args.no_animate {
             config.app.animation.animation_enabled = false;
@@ -91,6 +93,9 @@ impl App {
 
         // Get terminal size
         let (width, height) = crossterm::terminal::size()?;
+
+        // Get current working directory
+        let pwd = std::env::current_dir()?.to_string_lossy().to_string();
         let sidebar_width = config.app.layout.sidebar_width;
         let app_width = width.saturating_sub(sidebar_width);
 
@@ -173,6 +178,7 @@ impl App {
             display_disk_write,
             iteration_count,
             command,
+            pwd,
             follow_mode,
             scroll_offset,
         })
@@ -356,12 +362,15 @@ impl App {
                     self.terminal.draw(|f| {
                         draw_ui(f, DrawContext {
                             command: &self.command,
+                            pwd: &self.pwd,
                             elapsed: self.start_time.elapsed(),
                             pid: self.process_manager.pid,
+                            ppid: self.process_manager.ppid,
                             animation_frame: current_animation_frame,
                             theme: &theme,
                             output_lines: &self.output_lines,
                             sidebar_width: self.config.app.layout.sidebar_width,
+                            max_command_lines: self.config.app.max_command_lines(),
                             cpu_percent: self.display_cpu,
                             memory_used: self.display_memory,
                             memory_total,

@@ -41,6 +41,10 @@ impl AppConfig {
     pub fn no_animate(&self) -> bool {
         self.animation.no_animate
     }
+
+    pub fn max_command_lines(&self) -> usize {
+        self.layout.max_command_lines
+    }
 }
 
 #[cfg(test)]

@@ -23,6 +23,10 @@ pub struct Args {
     #[arg(long, default_value = "1000")]
     pub max_output_lines: usize,
 
+    /// Maximum number of lines to display for the command
+    #[arg(long, default_value = "3")]
+    pub max_command_lines: usize,
+
     /// Enable/disable animation
     #[arg(long, default_value = "true")]
     pub animation: bool,

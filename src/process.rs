@@ -8,6 +8,7 @@ use tokio_stream::StreamExt;
 pub struct ProcessManager {
     pub child: tokio::process::Child,
     pub pid: u32,
+    pub ppid: u32,
 }
 
 impl ProcessManager {
@@ -18,8 +19,9 @@ impl ProcessManager {
         child_cmd.stderr(std::process::Stdio::piped());
         let child = child_cmd.spawn()?;
         let pid = child.id().unwrap_or(0);
+        let ppid = std::process::id();
 
-        Ok(ProcessManager { child, pid })
+        Ok(ProcessManager { child, pid, ppid })
     }
 
     pub fn start_output_reading(

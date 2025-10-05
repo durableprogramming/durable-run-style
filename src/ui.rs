@@ -11,6 +11,50 @@ use std::time::Duration;
 
 const SPARKLINE_CHARS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 
+fn wrap_command_text(command: &[String], max_width: usize, max_lines: usize) -> Vec<String> {
+    let full_command = command.join(" ");
+    let wrap_indicator = "↩";
+    let indicator_len = wrap_indicator.chars().count();
+    let mut lines = Vec::new();
+    let mut start = 0;
+    let chars: Vec<char> = full_command.chars().collect();
+
+    while start < chars.len() {
+        let remaining = chars.len() - start;
+        let end = start + max_width.min(remaining);
+        if end < chars.len() {
+            // Will add indicator, so take less to make room
+            let actual_end = start + (max_width - indicator_len).min(remaining);
+            let line: String = chars[start..actual_end].iter().cloned().collect();
+            lines.push(format!("{}{}", line, wrap_indicator));
+            start = actual_end;
+        } else {
+            let line: String = chars[start..end].iter().cloned().collect();
+            lines.push(line);
+            start = end;
+        }
+    }
+
+    // Limit to max_lines
+    let was_truncated = lines.len() > max_lines;
+    if was_truncated {
+        lines.truncate(max_lines);
+        // Since there are more lines, indicate truncation with ellipsis on the last line
+        if let Some(last_line) = lines.last_mut() {
+            // Remove any trailing wrap_indicator
+            let line_without_indicator = last_line.trim_end_matches(wrap_indicator);
+            // Truncate to make room for ellipsis
+            let ellipsis = "…";
+            let ellipsis_len = ellipsis.chars().count();
+            let max_len = max_width.saturating_sub(ellipsis_len);
+            let truncated_line: String = line_without_indicator.chars().take(max_len).collect();
+            *last_line = format!("{}{}", truncated_line, ellipsis);
+        }
+    }
+
+    lines
+}
+
 fn generate_sparkline(data: &[f32], width: usize, theme: &Theme) -> Vec<Span<'static>> {
     if data.is_empty() {
         return vec![Span::styled(" ".repeat(width), Style::default().fg(theme.secondary))];
@@ -43,12 +87,15 @@ fn generate_sparkline_u64(data: &[u64], width: usize, theme: &Theme) -> Vec<Span
 
 pub struct DrawContext<'a> {
     pub command: &'a [String],
+    pub pwd: &'a str,
     pub elapsed: Duration,
     pub pid: u32,
+    pub ppid: u32,
     pub animation_frame: u32,
     pub theme: &'a Theme,
     pub output_lines: &'a [String],
     pub sidebar_width: u16,
+    pub max_command_lines: usize,
     pub cpu_percent: f32,
     pub memory_used: u64,
     pub memory_total: u64,
@@ -91,7 +138,7 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
 
     let output_paragraph = Paragraph::new(output_text)
         .block(output_block)
-        .wrap(Wrap { trim: true })
+        .wrap(Wrap { trim: false })
         .scroll((scroll_pos as u16, 0));
     f.render_widget(output_paragraph, main_rect);
 
@@ -170,12 +217,25 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
     lines.push(Line::from(""));
 
 
-    // Command line
-    let command_text = context.command.join(" ");
-    lines.push(Line::from(Span::styled(
-        command_text,
-        Style::default().fg(context.theme.text),
-    )));
+    // Command line (wrapped)
+    let wrapped_command_lines = wrap_command_text(context.command, content_width, context.max_command_lines);
+    for line in wrapped_command_lines {
+        lines.push(Line::from(Span::styled(
+            line,
+            Style::default().fg(context.theme.text),
+        )));
+    }
+
+    // PWD line (wrapped)
+    let pwd_with_label = format!("PWD: {}", context.pwd);
+    let wrapped_pwd_lines = wrap_command_text(&[pwd_with_label], content_width, context.max_command_lines);
+    for line in wrapped_pwd_lines {
+        lines.push(Line::from(Span::styled(
+            line,
+            Style::default().fg(context.theme.secondary),
+        )));
+    }
+
     // Empty line for spacing between runtime and command
     lines.push(Line::from(""));
 
@@ -192,6 +252,14 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
     let pid_text = format!("{:<10}{:>width$}", "PID:", pid_value, width = remaining_width);
     lines.push(Line::from(Span::styled(
         pid_text,
+        Style::default().fg(context.theme.accent),
+    )));
+
+    // PPID
+    let ppid_value = context.ppid.to_string();
+    let ppid_text = format!("{:<10}{:>width$}", "PPID:", ppid_value, width = remaining_width);
+    lines.push(Line::from(Span::styled(
+        ppid_text,
         Style::default().fg(context.theme.accent),
     )));
 
@@ -423,4 +491,49 @@ fn generate_sparkline_f64(data: &[f64], width: usize, theme: &Theme) -> Vec<Span
         let color = theme.shades[index];
         Span::styled(SPARKLINE_CHARS[index].to_string(), Style::default().fg(color))
     }).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wrap_command_text_short() {
+        let command = vec!["short".to_string(), "command".to_string()];
+        let result = wrap_command_text(&command, 20, 3);
+        assert_eq!(result, vec!["short command"]);
+    }
+
+    #[test]
+    fn test_wrap_command_text_long_single_line() {
+        let command = vec!["this".to_string(), "is".to_string(), "a".to_string(), "very".to_string(), "long".to_string(), "command".to_string(), "that".to_string(), "should".to_string(), "wrap".to_string()];
+        let result = wrap_command_text(&command, 20, 3);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "this is a very long↩");
+        assert_eq!(result[1], " command that shoul↩");
+        assert_eq!(result[2], "d wrap");
+    }
+
+    #[test]
+    fn test_wrap_command_text_max_lines() {
+        let command = vec!["word1".to_string(), "word2".to_string(), "word3".to_string(), "word4".to_string(), "word5".to_string(), "word6".to_string(), "word7".to_string()];
+        let result = wrap_command_text(&command, 10, 2);
+        assert_eq!(result.len(), 2);
+        assert!(result[1].ends_with("…"));
+    }
+
+    #[test]
+    fn test_wrap_command_text_no_wrap_needed() {
+        let command = vec!["hello".to_string(), "world".to_string()];
+        let result = wrap_command_text(&command, 20, 3);
+        assert_eq!(result, vec!["hello world"]);
+    }
+
+    #[test]
+    fn test_wrap_pwd_text() {
+        let pwd = "/very/long/path/to/some/directory/that/might/wrap".to_string();
+        let result = wrap_command_text(&[pwd], 20, 3);
+        assert!(result.len() >= 1);
+        assert!(result[0].contains("↩") || result.len() == 1);
+    }
 }
