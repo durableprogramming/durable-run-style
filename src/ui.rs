@@ -1,5 +1,6 @@
 use crate::theme::Theme;
 use crate::utils::{blend_colors, format_bytes, format_runtime};
+use crate::easing;
 use ratatui::{
     layout::Rect,
     style::{Modifier, Style},
@@ -109,6 +110,15 @@ pub struct DrawContext<'a> {
     pub disk_write_history: &'a [u64],
     pub follow_mode: bool,
     pub scroll_offset: usize,
+    pub shine_amplitude: f32,
+    pub shine_frequency: f32,
+    pub shine_base_intensity: f32,
+    pub shine_angle_start: f32,
+    pub shine_angle_end: f32,
+    pub shine_width_start: f32,
+    pub shine_width_end: f32,
+    pub shine_width_quarterpoint: f32,
+    pub shine_width_midpoint: f32,
 }
 
 pub fn draw_ui(f: &mut Frame, context: DrawContext) {
@@ -159,12 +169,19 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
     let header_lines: Vec<&str> = include_str!("../static/top_art.txt").lines().filter(|line| !line.trim().is_empty()).collect();
     let content_width = inner_area.width as usize;
     let remaining_width = content_width - 11;
-    let shine_width = 3.0;
     let total_cycle_frames = 110;
     let cycle_frame = context.animation_frame % total_cycle_frames;
+    let width_progress = cycle_frame as f32 / (total_cycle_frames as f32 - 1.0);
+    let shine_width = context.shine_width_start + (context.shine_width_end - context.shine_width_start) * easing::ease_in_out_cubic(width_progress);
 
     let mut line_len = 0;
-    for line in header_lines {
+    let mut header_line_index = 0;
+    let max_line_index = (header_lines.len().saturating_sub(1)) as f32;
+    let max_angle = context.shine_angle_start.max(context.shine_angle_end);
+    let max_angle_rad = max_angle.to_radians();
+    let max_tan = max_angle_rad.tan();
+    let max_offset = max_line_index * max_tan;
+    for line in &header_lines {
 
         if line_len == 0 {
             line_len = line.chars().count();
@@ -174,30 +191,49 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
         let right_pad = total_pad - left_pad;
         let padded_line = format!("{}{}{}", " ".repeat(left_pad), line, " ".repeat(right_pad));
         let line_len_f32 = padded_line.chars().count() as f32;
+        let start_pos = -shine_width;
+        let end_pos = line_len_f32 + shine_width + max_offset;
         let shine_position = if cycle_frame < 30 {
-            // moving left to right
+            // moving from start to end with ease in-out
             let progress = cycle_frame as f32 / 29.0;
-            progress * (line_len_f32 + shine_width * 2.0) - shine_width
+            let eased_progress = easing::ease_in_out_cubic(progress);
+            start_pos + (end_pos - start_pos) * eased_progress
         } else if cycle_frame < 55 {
-            // pause at right
-            line_len_f32 + shine_width
+            // pause at end
+            end_pos
         } else if cycle_frame < 85 {
-            // moving right to left
+            // moving from end to start with ease in-out
             let progress = (cycle_frame - 55) as f32 / 29.0;
-            (1.0 - progress) * (line_len_f32 + shine_width * 2.0) - shine_width
+            let eased_progress = easing::ease_in_out_cubic(progress);
+            end_pos + (start_pos - end_pos) * eased_progress
         } else {
-            // pause at left
-            -shine_width
+            // pause at start
+            start_pos
         };
+        let progress = if (end_pos - start_pos).abs() > 0.0 {
+            ((shine_position - start_pos) / (end_pos - start_pos)).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let angle_deg = context.shine_angle_start + (context.shine_angle_end - context.shine_angle_start) * progress;
+        let angle_rad = angle_deg.to_radians();
+        let offset_factor = angle_rad.tan();
 
         let mut spans = Vec::new();
         for (char_idx, ch) in padded_line.chars().enumerate() {
-            let distance_from_shine = (char_idx as f32 - shine_position).abs();
-            let shine_intensity = if distance_from_shine <= shine_width {
-                (1.0 - (distance_from_shine / shine_width)) * 0.5
-            } else {
-                0.0
-            };
+            let distance_from_shine = ((char_idx as f32 - shine_position) + (header_line_index as f32) * offset_factor).abs();
+             let distance_factor = if distance_from_shine <= shine_width {
+                 let normalized_distance = distance_from_shine / shine_width;
+                 let eased_distance = easing::ease_out_quad(1.0 - normalized_distance);
+                 eased_distance
+             } else {
+                 0.0
+             };
+             let time_phase = context.animation_frame as f32 * context.shine_frequency * 0.1;
+             let spatial_phase = (char_idx as f32 / line_len_f32) * 0.5;
+             let sin_value = (time_phase + spatial_phase).sin();
+             let modulation = context.shine_base_intensity + context.shine_amplitude * (sin_value * 0.5 + 0.5);
+             let shine_intensity = distance_factor * modulation;
 
             let color = if shine_intensity > 0.0 {
                 blend_colors(context.theme.primary, ratatui::style::Color::White, shine_intensity)
@@ -211,6 +247,7 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
             ));
         }
         lines.push(Line::from(spans));
+        header_line_index += 1;
     }
 
     // Empty line for spacing
@@ -346,9 +383,16 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
         // Empty line before bottom art
         lines.push(Line::from(""));
 
-        let shine_width = 3.0;
         let total_cycle_frames = 110;
         let cycle_frame = context.animation_frame % total_cycle_frames;
+        let width_progress = cycle_frame as f32 / (total_cycle_frames as f32 - 1.0);
+        let keyframes = vec![
+            (0.0, context.shine_width_start),
+            (0.25, context.shine_width_quarterpoint),
+            (0.5, context.shine_width_midpoint),
+            (1.0, context.shine_width_end),
+        ];
+        let shine_width = easing::keyframe_interpolate(&keyframes, width_progress);
 
         let mut bottom_line_len = 0;
         for line in &bottom_art_lines {
@@ -357,36 +401,61 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
             }
         }
 
-        for line in bottom_art_lines {
+        let mut bottom_line_index = 0;
+        let max_line_index = (bottom_art_lines.len().saturating_sub(1)) as f32;
+        let max_angle = context.shine_angle_start.max(context.shine_angle_end);
+        let max_angle_rad = max_angle.to_radians();
+        let max_tan = max_angle_rad.tan();
+        let max_offset = max_line_index * max_tan;
+        for line in &bottom_art_lines {
             let total_pad = content_width.saturating_sub(bottom_line_len);
             let left_pad = total_pad / 2;
             let right_pad = total_pad - left_pad;
             let padded_line = format!("{}{}{}", " ".repeat(left_pad), line, " ".repeat(right_pad));
             let line_len_f32 = padded_line.chars().count() as f32;
+            let start_pos = -shine_width;
+            let end_pos = line_len_f32 + shine_width + max_offset;
             let shine_position = if cycle_frame < 30 {
-                // moving left to right
+                // moving from start to end with ease in-out
                 let progress = cycle_frame as f32 / 29.0;
-                progress * (line_len_f32 + shine_width * 2.0) - shine_width
+                let eased_progress = easing::ease_in_out_cubic(progress);
+                start_pos + (end_pos - start_pos) * eased_progress
             } else if cycle_frame < 55 {
-                // pause at right
-                line_len_f32 + shine_width
+                // pause at end
+                end_pos
             } else if cycle_frame < 85 {
-                // moving right to left
+                // moving from end to start with ease in-out
                 let progress = (cycle_frame - 55) as f32 / 29.0;
-                (1.0 - progress) * (line_len_f32 + shine_width * 2.0) - shine_width
+                let eased_progress = easing::ease_in_out_cubic(progress);
+                end_pos + (start_pos - end_pos) * eased_progress
             } else {
-                // pause at left
-                -shine_width
+                // pause at start
+                start_pos
             };
+            let progress = if (end_pos - start_pos).abs() > 0.0 {
+                ((shine_position - start_pos) / (end_pos - start_pos)).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let angle_deg = context.shine_angle_start + (context.shine_angle_end - context.shine_angle_start) * progress;
+            let angle_rad = angle_deg.to_radians();
+            let offset_factor = angle_rad.tan();
 
             let mut spans = Vec::new();
             for (char_idx, ch) in padded_line.chars().enumerate() {
-                let distance_from_shine = (char_idx as f32 - shine_position).abs();
-                let shine_intensity = if distance_from_shine <= shine_width {
-                    (1.0 - (distance_from_shine / shine_width)) * 0.5
+                let distance_from_shine = ((char_idx as f32 - shine_position) + (bottom_line_index as f32) * offset_factor).abs();
+                let distance_factor = if distance_from_shine <= shine_width {
+                    let normalized_distance = distance_from_shine / shine_width;
+                    let eased_distance = easing::ease_out_quad(1.0 - normalized_distance);
+                    eased_distance
                 } else {
                     0.0
                 };
+                let time_phase = context.animation_frame as f32 * context.shine_frequency * 0.1;
+                let spatial_phase = (char_idx as f32 / line_len_f32) * 0.5;
+                let sin_value = (time_phase + spatial_phase).sin();
+                let modulation = context.shine_base_intensity + context.shine_amplitude * (sin_value * 0.5 + 0.5);
+                let shine_intensity = distance_factor * modulation;
 
                 let color = if shine_intensity > 0.0 {
                     blend_colors(context.theme.primary, ratatui::style::Color::White, shine_intensity)
@@ -400,6 +469,7 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
                 ));
             }
             lines.push(Line::from(spans));
+            bottom_line_index += 1;
         }
     }
 

@@ -13,3 +13,4 @@ pub mod ui;
 pub mod utils;
 pub mod app;
 pub mod gfx_demo;
+pub mod easing;

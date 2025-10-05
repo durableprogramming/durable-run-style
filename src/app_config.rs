@@ -45,6 +45,42 @@ impl AppConfig {
     pub fn max_command_lines(&self) -> usize {
         self.layout.max_command_lines
     }
+
+    pub fn shine_amplitude(&self) -> f32 {
+        self.animation.shine_amplitude
+    }
+
+    pub fn shine_frequency(&self) -> f32 {
+        self.animation.shine_frequency
+    }
+
+    pub fn shine_base_intensity(&self) -> f32 {
+        self.animation.shine_base_intensity
+    }
+
+    pub fn shine_angle_start(&self) -> f32 {
+        self.animation.shine_angle_start
+    }
+
+    pub fn shine_angle_end(&self) -> f32 {
+        self.animation.shine_angle_end
+    }
+
+    pub fn shine_width_start(&self) -> f32 {
+        self.animation.shine_width_start
+    }
+
+    pub fn shine_width_end(&self) -> f32 {
+        self.animation.shine_width_end
+    }
+
+    pub fn shine_width_quarterpoint(&self) -> f32 {
+        self.animation.shine_width_quarterpoint
+    }
+
+    pub fn shine_width_midpoint(&self) -> f32 {
+        self.animation.shine_width_midpoint
+    }
 }
 
 #[cfg(test)]

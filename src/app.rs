@@ -384,6 +384,15 @@ impl App {
                             disk_write_history: &self.disk_write_history,
                             follow_mode: self.follow_mode,
                             scroll_offset: self.scroll_offset,
+                            shine_amplitude: self.config.app.shine_amplitude(),
+                            shine_frequency: self.config.app.shine_frequency(),
+                            shine_base_intensity: self.config.app.shine_base_intensity(),
+                            shine_angle_start: self.config.app.shine_angle_start(),
+                            shine_angle_end: self.config.app.shine_angle_end(),
+                            shine_width_start: self.config.app.shine_width_start(),
+                            shine_width_end: self.config.app.shine_width_end(),
+                            shine_width_quarterpoint: self.config.app.shine_width_quarterpoint(),
+                            shine_width_midpoint: self.config.app.shine_width_midpoint(),
                         });
                     })?;
 
