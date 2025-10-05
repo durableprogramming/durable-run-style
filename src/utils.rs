@@ -47,5 +47,71 @@ mod tests {
         assert_eq!(format_runtime(Duration::from_secs(59)), "00:00:59");
         assert_eq!(format_runtime(Duration::from_secs(60)), "00:01:00");
         assert_eq!(format_runtime(Duration::from_secs(3661)), "01:01:01");
+        assert_eq!(format_runtime(Duration::from_secs(7265)), "02:01:05");
+    }
+
+    #[test]
+    fn test_blend_colors_rgb() {
+        let base = ratatui::style::Color::Rgb(100, 150, 200);
+        let shine = ratatui::style::Color::Rgb(200, 100, 50);
+
+        // Full base color
+        let result = blend_colors(base, shine, 0.0);
+        assert_eq!(result, ratatui::style::Color::Rgb(100, 150, 200));
+
+        // Full shine color
+        let result = blend_colors(base, shine, 1.0);
+        assert_eq!(result, ratatui::style::Color::Rgb(200, 100, 50));
+
+        // 50% blend
+        let result = blend_colors(base, shine, 0.5);
+        assert_eq!(result, ratatui::style::Color::Rgb(150, 125, 125));
+    }
+
+    #[test]
+    fn test_blend_colors_clamping() {
+        let base = ratatui::style::Color::Rgb(0, 0, 0);
+        let shine = ratatui::style::Color::Rgb(255, 255, 255);
+
+        // Test intensity clamping
+        let result = blend_colors(base, shine, -0.5);
+        assert_eq!(result, ratatui::style::Color::Rgb(0, 0, 0));
+
+        let result = blend_colors(base, shine, 1.5);
+        assert_eq!(result, ratatui::style::Color::Rgb(255, 255, 255));
+    }
+
+    #[test]
+    fn test_blend_colors_non_rgb() {
+        let base = ratatui::style::Color::Red; // Non-RGB color
+        let shine = ratatui::style::Color::Rgb(100, 100, 100);
+
+        // Should default to white for non-RGB base
+        let result = blend_colors(base, shine, 0.5);
+        assert_eq!(result, ratatui::style::Color::Rgb(177, 177, 177));
+    }
+
+    #[test]
+    fn test_format_bytes() {
+        assert_eq!(format_bytes(0), "0.0B");
+        assert_eq!(format_bytes(512), "512.0B");
+        assert_eq!(format_bytes(1024), "1.0KB");
+        assert_eq!(format_bytes(1536), "1.5KB");
+        assert_eq!(format_bytes(1024 * 1024), "1.0MB");
+        assert_eq!(format_bytes(1024 * 1024 * 1024), "1.0GB");
+        assert_eq!(format_bytes(1024 * 1024 * 1024 * 1024), "1.0TB");
+        assert_eq!(format_bytes(u64::MAX), "16777216.0TB"); // Limited to TB units
+    }
+
+    #[test]
+    fn test_format_bytes_edge_cases() {
+        // Test large numbers - function is limited to TB
+        let large_bytes = 1024u64.pow(5); // 1 PB
+        let result = format_bytes(large_bytes);
+        assert!(result.ends_with("TB")); // Limited to TB units
+
+        // Test maximum u64 - also limited to TB
+        let result = format_bytes(u64::MAX);
+        assert!(result.ends_with("TB"));
     }
 }

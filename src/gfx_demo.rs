@@ -120,16 +120,13 @@ impl GfxDemoApp {
                 _ = sleep(Duration::from_millis(20)) => {
                     // Check for key events only if TTY
                     if self.is_tty && event::poll(Duration::from_millis(10))? {
-                        match event::read()? {
-                            Event::Key(key) => {
-                                if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-                                    break;
-                                }
-                                if key.code == KeyCode::Char('q') {
-                                    break;
-                                }
+                        if let Event::Key(key) = event::read()? {
+                            if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                                break;
                             }
-                            _ => {}
+                            if key.code == KeyCode::Char('q') {
+                                break;
+                            }
                         }
                     }
 

@@ -1,7 +1,6 @@
 /// Easing functions for smooth animations
 /// All functions take a normalized time value t in range [0.0, 1.0]
 /// and return a normalized value in range [0.0, 1.0] (or slightly outside for overshoot effects)
-
 use std::f32::consts::PI;
 
 /// Linear interpolation (no easing)
@@ -261,7 +260,7 @@ pub fn ease_range(t: f32, start: f32, end: f32, easing_fn: fn(f32) -> f32) -> f3
 
 /// Clamp a value to [0.0, 1.0] range
 pub fn clamp_01(value: f32) -> f32 {
-    value.max(0.0).min(1.0)
+    value.clamp(0.0, 1.0)
 }
 
 /// Interpolate between keyframes

@@ -27,7 +27,7 @@ fn wrap_command_text(command: &[String], max_width: usize, max_lines: usize) -> 
             // Will add indicator, so take less to make room
             let actual_end = start + (max_width - indicator_len).min(remaining);
             let line: String = chars[start..actual_end].iter().cloned().collect();
-            lines.push(format!("{}{}", line, wrap_indicator));
+            lines.push(format!("{line}{wrap_indicator}"));
             start = actual_end;
         } else {
             let line: String = chars[start..end].iter().cloned().collect();
@@ -49,7 +49,7 @@ fn wrap_command_text(command: &[String], max_width: usize, max_lines: usize) -> 
             let ellipsis_len = ellipsis.chars().count();
             let max_len = max_width.saturating_sub(ellipsis_len);
             let truncated_line: String = line_without_indicator.chars().take(max_len).collect();
-            *last_line = format!("{}{}", truncated_line, ellipsis);
+            *last_line = format!("{truncated_line}{ellipsis}");
         }
     }
 
@@ -175,13 +175,12 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
     let shine_width = context.shine_width_start + (context.shine_width_end - context.shine_width_start) * easing::ease_in_out_cubic(width_progress);
 
     let mut line_len = 0;
-    let mut header_line_index = 0;
     let max_line_index = (header_lines.len().saturating_sub(1)) as f32;
     let max_angle = context.shine_angle_start.max(context.shine_angle_end);
     let max_angle_rad = max_angle.to_radians();
     let max_tan = max_angle_rad.tan();
     let max_offset = max_line_index * max_tan;
-    for line in &header_lines {
+    for (header_line_index, line) in header_lines.iter().enumerate() {
 
         if line_len == 0 {
             line_len = line.chars().count();
@@ -224,8 +223,7 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
             let distance_from_shine = ((char_idx as f32 - shine_position) + (header_line_index as f32) * offset_factor).abs();
              let distance_factor = if distance_from_shine <= shine_width {
                  let normalized_distance = distance_from_shine / shine_width;
-                 let eased_distance = easing::ease_out_quad(1.0 - normalized_distance);
-                 eased_distance
+                 easing::ease_out_quad(1.0 - normalized_distance)
              } else {
                  0.0
              };
@@ -247,7 +245,6 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
             ));
         }
         lines.push(Line::from(spans));
-        header_line_index += 1;
     }
 
     // Empty line for spacing
@@ -301,7 +298,7 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
     )));
 
     // CPU sparkline
-    let cpu_sparkline_spans = generate_sparkline(context.cpu_history, content_width, &context.theme);
+    let cpu_sparkline_spans = generate_sparkline(context.cpu_history, content_width, context.theme);
     lines.push(Line::from(cpu_sparkline_spans));
     // Padding below flamegraph
     lines.push(Line::from(""));
@@ -315,7 +312,7 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
     )));
 
     // Memory sparkline
-    let memory_sparkline_spans = generate_sparkline_u64(context.memory_history, content_width, &context.theme);
+    let memory_sparkline_spans = generate_sparkline_u64(context.memory_history, content_width, context.theme);
     lines.push(Line::from(memory_sparkline_spans));
     // Padding below flamegraph
     lines.push(Line::from(""));
@@ -334,7 +331,7 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
     )));
 
     // Disk IO sparkline (combined read and write, using read for simplicity)
-    let disk_sparkline_spans = generate_sparkline_u64(context.disk_read_history, content_width, &context.theme);
+    let disk_sparkline_spans = generate_sparkline_u64(context.disk_read_history, content_width, context.theme);
     lines.push(Line::from(disk_sparkline_spans));
     // Padding below flamegraph
     lines.push(Line::from(""));
@@ -371,11 +368,7 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
         let bottom_art_height = 1 + bottom_art_lines.len(); // empty line + art lines
         let current_lines_height = lines.len();
         let total_needed = current_lines_height + bottom_art_height;
-        let padding_needed = if total_needed <= inner_area.height as usize {
-            inner_area.height as usize - total_needed
-        } else {
-            0
-        };
+        let padding_needed = (inner_area.height as usize).saturating_sub(total_needed);
         // Add padding lines to push bottom art to the bottom
         for _ in 0..padding_needed {
             lines.push(Line::from(""));
@@ -401,13 +394,12 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
             }
         }
 
-        let mut bottom_line_index = 0;
         let max_line_index = (bottom_art_lines.len().saturating_sub(1)) as f32;
         let max_angle = context.shine_angle_start.max(context.shine_angle_end);
         let max_angle_rad = max_angle.to_radians();
         let max_tan = max_angle_rad.tan();
         let max_offset = max_line_index * max_tan;
-        for line in &bottom_art_lines {
+        for (bottom_line_index, line) in bottom_art_lines.iter().enumerate() {
             let total_pad = content_width.saturating_sub(bottom_line_len);
             let left_pad = total_pad / 2;
             let right_pad = total_pad - left_pad;
@@ -446,8 +438,8 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
                 let distance_from_shine = ((char_idx as f32 - shine_position) + (bottom_line_index as f32) * offset_factor).abs();
                 let distance_factor = if distance_from_shine <= shine_width {
                     let normalized_distance = distance_from_shine / shine_width;
-                    let eased_distance = easing::ease_out_quad(1.0 - normalized_distance);
-                    eased_distance
+                    
+                    easing::ease_out_quad(1.0 - normalized_distance)
                 } else {
                     0.0
                 };
@@ -469,7 +461,6 @@ pub fn draw_ui(f: &mut Frame, context: DrawContext) {
                 ));
             }
             lines.push(Line::from(spans));
-            bottom_line_index += 1;
         }
     }
 
@@ -547,16 +538,16 @@ pub fn draw_gfx_demo_ui(f: &mut Frame, context: GfxDemoDrawContext) {
 
     for (i, (label, unit)) in technobabble.iter().enumerate() {
         let (value, _) = context.display_states[i];
-        let is_warning = value > 90.0 || value < 10.0;
+        let is_warning = !(10.0..=90.0).contains(&value);
         let value_color = if is_warning {
             ratatui::style::Color::Red
         } else {
             context.theme.shades[(context.animation_frame.wrapping_add(label.len() as u32) / 10 % context.theme.shades.len() as u32) as usize]
         };
-        let formatted_value = format!("{:.8}", value);
+        let formatted_value = format!("{value:.8}");
         left_lines.push(Line::from(vec![
-            Span::styled(format!("{}: ", label), Style::default().fg(context.theme.secondary)),
-            Span::styled(format!("{} {}", formatted_value, unit), Style::default().fg(value_color).add_modifier(Modifier::BOLD)),
+            Span::styled(format!("{label}: "), Style::default().fg(context.theme.secondary)),
+            Span::styled(format!("{formatted_value} {unit}"), Style::default().fg(value_color).add_modifier(Modifier::BOLD)),
         ]));
     }
 
@@ -621,23 +612,6 @@ pub fn draw_gfx_demo_ui(f: &mut Frame, context: GfxDemoDrawContext) {
     f.render_widget(right_paragraph, right_inner);
 }
 
-
-
-fn generate_sparkline_f64(data: &[f64], width: usize, theme: &Theme) -> Vec<Span<'static>> {
-    if data.is_empty() {
-        return vec![Span::styled(" ".repeat(width), Style::default().fg(theme.secondary))];
-    }
-    let max_val = data.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    let min_val = data.iter().cloned().fold(f64::INFINITY, f64::min);
-    let range = if (max_val - min_val).abs() < f64::EPSILON { 1.0 } else { max_val - min_val };
-    data.iter().take(width).map(|&val| {
-        let normalized = if range == 0.0 { 0.0 } else { (val - min_val) / range };
-        let index = (normalized * (SPARKLINE_CHARS.len() - 1) as f64).round() as usize;
-        let color = theme.shades[index];
-        Span::styled(SPARKLINE_CHARS[index].to_string(), Style::default().fg(color))
-    }).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -678,7 +652,7 @@ mod tests {
     fn test_wrap_pwd_text() {
         let pwd = "/very/long/path/to/some/directory/that/might/wrap".to_string();
         let result = wrap_command_text(&[pwd], 20, 3);
-        assert!(result.len() >= 1);
+        assert!(!result.is_empty());
         assert!(result[0].contains("↩") || result.len() == 1);
     }
 }

@@ -4,7 +4,7 @@ pub use crate::ui_layout::LayoutConfig;
 pub use crate::ui_output::OutputConfig;
 pub use crate::ui_animation::AnimationConfig;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     #[serde(flatten)]
     pub layout: LayoutConfig,
@@ -12,16 +12,6 @@ pub struct AppConfig {
     pub output: OutputConfig,
     #[serde(flatten)]
     pub animation: AnimationConfig,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        AppConfig {
-            layout: LayoutConfig::default(),
-            output: OutputConfig::default(),
-            animation: AnimationConfig::default(),
-        }
-    }
 }
 
 impl AppConfig {
@@ -103,5 +93,58 @@ mod tests {
         assert_eq!(config.output.max_output_lines, 1000);
         assert!(config.animation.animation_enabled);
         assert!(!config.animation.no_animate);
+    }
+
+    #[test]
+    fn test_app_config_serialization() {
+        let config = AppConfig::default();
+        let serialized = toml::to_string(&config).unwrap();
+        let deserialized: AppConfig = toml::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.sidebar_width(), config.sidebar_width());
+        assert_eq!(deserialized.max_output_lines(), config.max_output_lines());
+    }
+
+    #[test]
+    fn test_app_config_clone() {
+        let config = AppConfig::default();
+        let cloned = config.clone();
+        assert_eq!(cloned.sidebar_width(), config.sidebar_width());
+        assert_eq!(cloned.max_output_lines(), config.max_output_lines());
+    }
+
+    #[test]
+    fn test_app_config_convenience_methods() {
+        let config = AppConfig::default();
+        assert_eq!(config.sidebar_width(), config.layout.sidebar_width);
+        assert_eq!(config.max_output_lines(), config.output.max_output_lines);
+        assert_eq!(config.animation_enabled(), config.animation.animation_enabled);
+        assert_eq!(config.no_animate(), config.animation.no_animate);
+        assert_eq!(config.max_command_lines(), config.layout.max_command_lines);
+    }
+
+    #[test]
+    fn test_app_config_animation_properties() {
+        let config = AppConfig::default();
+        // Test that animation properties are accessible
+        let _amplitude = config.shine_amplitude();
+        let _frequency = config.shine_frequency();
+        let _base_intensity = config.shine_base_intensity();
+        let _angle_start = config.shine_angle_start();
+        let _angle_end = config.shine_angle_end();
+        let _width_start = config.shine_width_start();
+        let _width_end = config.shine_width_end();
+        let _width_quarter = config.shine_width_quarterpoint();
+        let _width_mid = config.shine_width_midpoint();
+        // Values depend on AnimationConfig defaults
+    }
+
+    #[test]
+    fn test_app_config_debug() {
+        let config = AppConfig::default();
+        let debug_str = format!("{config:?}");
+        assert!(debug_str.contains("AppConfig"));
+        assert!(debug_str.contains("layout:"));
+        assert!(debug_str.contains("output:"));
+        assert!(debug_str.contains("animation:"));
     }
 }

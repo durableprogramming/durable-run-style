@@ -20,9 +20,11 @@ use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration, Instant};
 
 pub struct App {
+    #[allow(dead_code)]
     args: Args,
     config: Config,
     process_manager: ProcessManager,
+    #[allow(dead_code)]
     log_file: Option<Arc<std::sync::Mutex<std::fs::File>>>,
     output_lines: Vec<String>,
     output_rx: mpsc::UnboundedReceiver<String>,
@@ -31,6 +33,7 @@ pub struct App {
     current_height: u16,
     animation_frame: u32,
     system: System,
+    #[allow(dead_code)]
     network_stats_rx: Option<mpsc::UnboundedReceiver<(u64, u64)>>,
     disk_stats_rx: mpsc::UnboundedReceiver<(u64, u64)>,
     start_time: Instant,
@@ -415,10 +418,145 @@ impl App {
         // Print last few lines of output
         let last_lines = self.output_lines.iter().rev().take(10).collect::<Vec<_>>().into_iter().rev();
         for line in last_lines {
-            println!("{}", line);
+            println!("{line}");
         }
         println!("Thank you for using druns!");
 
         Ok(status)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::Args;
+
+    // Mock Args for testing
+    fn create_test_args() -> Args {
+        Args {
+            command: vec!["echo".to_string(), "test".to_string()],
+            log: None,
+            config: None,
+            sidebar_width: 30,
+            max_output_lines: 1000,
+            max_command_lines: 3,
+            animation: true,
+            no_animate: false,
+        }
+    }
+
+    #[test]
+    fn test_args_creation() {
+        let args = create_test_args();
+        assert_eq!(args.command, vec!["echo", "test"]);
+        assert_eq!(args.sidebar_width, 30);
+        assert_eq!(args.max_output_lines, 1000);
+        assert!(args.animation);
+        assert!(!args.no_animate);
+    }
+
+    #[test]
+    fn test_config_loading_with_defaults() {
+        // Test that Config::with_defaults works
+        let config = Config::with_defaults();
+        assert_eq!(config.app.layout.sidebar_width, 30);
+        assert_eq!(config.app.output.max_output_lines, 1000);
+    }
+
+    #[test]
+    fn test_config_override_logic() {
+        let args = Args {
+            command: vec![],
+            log: None,
+            config: None,
+            sidebar_width: 50,
+            max_output_lines: 2000,
+            max_command_lines: 5,
+            animation: false,
+            no_animate: true,
+        };
+
+        let mut config = Config::with_defaults();
+        config.app.layout.sidebar_width = args.sidebar_width;
+        config.app.layout.max_command_lines = args.max_command_lines;
+        config.app.output.max_output_lines = args.max_output_lines;
+
+        if args.no_animate {
+            config.app.animation.animation_enabled = false;
+        } else {
+            config.app.animation.animation_enabled = args.animation;
+        }
+
+        assert_eq!(config.app.layout.sidebar_width, 50);
+        assert_eq!(config.app.output.max_output_lines, 2000);
+        assert_eq!(config.app.layout.max_command_lines, 5);
+        assert!(!config.app.animation.animation_enabled);
+    }
+
+    #[test]
+    fn test_min_sidebar_width_calculation() {
+        let header_content = include_str!("../static/top_art.txt");
+        let header_lines: Vec<&str> = header_content.lines().filter(|line| !line.trim().is_empty()).collect();
+        let max_len = header_lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
+        let min_content_width = max_len + 2;
+        let min_sidebar_width = min_content_width + 2;
+
+        // Test that calculation produces reasonable values
+        assert!(min_sidebar_width > 0);
+        assert!(min_sidebar_width >= max_len);
+    }
+
+    #[test]
+    fn test_scroll_offset_calculations() {
+        // Test basic scroll offset logic
+        let total_lines: usize = 100;
+        let visible_height: usize = 20;
+        let max_scroll_up = total_lines.saturating_sub(visible_height);
+
+        assert_eq!(max_scroll_up, 80);
+
+        // Test scroll up
+        let mut scroll_offset: usize = 0;
+        scroll_offset += 1;
+        assert_eq!(scroll_offset, 1);
+
+        // Test scroll down
+        scroll_offset = scroll_offset.saturating_sub(1);
+        assert_eq!(scroll_offset, 0);
+    }
+
+    #[test]
+    fn test_history_limits() {
+        const MAX_HISTORY: usize = 300;
+        let mut cpu_history: Vec<f32> = (0..310).map(|i| i as f32).collect();
+
+        // Simulate limiting history
+        while cpu_history.len() > MAX_HISTORY {
+            cpu_history.remove(0);
+        }
+
+        assert_eq!(cpu_history.len(), MAX_HISTORY);
+        assert_eq!(cpu_history[0], 10.0); // First 10 items were removed
+    }
+
+    #[test]
+    fn test_display_value_calculations() {
+        let cpu_history = [10.0, 20.0, 30.0];
+        let display_cpu = if !cpu_history.is_empty() {
+            cpu_history.iter().sum::<f32>() / cpu_history.len() as f32
+        } else {
+            0.0
+        };
+
+        assert_eq!(display_cpu, 20.0);
+
+        let memory_history = [100, 200, 300];
+        let display_memory = if !memory_history.is_empty() {
+            (memory_history.iter().sum::<u64>() as f64 / memory_history.len() as f64).round() as u64
+        } else {
+            0
+        };
+
+        assert_eq!(display_memory, 200);
     }
 }

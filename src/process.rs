@@ -40,7 +40,7 @@ impl ProcessManager {
                     if let Ok(line) = line {
                         if let Some(file) = &log_file {
                             let mut file = file.lock().unwrap();
-                            let _ = std::io::Write::write_all(&mut *file, format!("{}\n", line).as_bytes());
+                            let _ = std::io::Write::write_all(&mut *file, format!("{line}\n").as_bytes());
                             let _ = file.flush();
                         }
                         let _ = tx.send(line);
@@ -60,7 +60,7 @@ impl ProcessManager {
                     if let Ok(line) = line {
                         if let Some(file) = &log_file {
                             let mut file = file.lock().unwrap();
-                            let _ = std::io::Write::write_all(&mut *file, format!("{}\n", line).as_bytes());
+                            let _ = std::io::Write::write_all(&mut *file, format!("{line}\n").as_bytes());
                             let _ = file.flush();
                         }
                         let _ = tx.send(line);

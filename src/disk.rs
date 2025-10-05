@@ -9,16 +9,14 @@ fn get_child_pids(pid: u32) -> Vec<u32> {
     while let Some(current_pid) = to_check.pop() {
         if let Ok(process) = Process::new(current_pid as i32) {
             if let Ok(tasks) = process.tasks() {
-                for task in tasks {
-                    if let Ok(task) = task {
-                        if let Ok(stat) = task.stat() {
-                            // Check if this is a child process
-                            if stat.ppid == current_pid as i32 {
-                                let child_pid = stat.pid as u32;
-                                if !pids.contains(&child_pid) {
-                                    pids.push(child_pid);
-                                    to_check.push(child_pid);
-                                }
+                for task in tasks.flatten() {
+                    if let Ok(stat) = task.stat() {
+                        // Check if this is a child process
+                        if stat.ppid == current_pid as i32 {
+                            let child_pid = stat.pid as u32;
+                            if !pids.contains(&child_pid) {
+                                pids.push(child_pid);
+                                to_check.push(child_pid);
                             }
                         }
                     }
