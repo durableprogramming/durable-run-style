@@ -1,30 +1,19 @@
-[package]
-name = "druns"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+resolver = "2"
 
-[dependencies]
-clap = { version = "4.0", features = ["derive"] }
-crossterm = "0.27"
-ratatui = "0.26"
-tokio = { version = "1.0", features = ["full"] }
- tokio-stream = { version = "0.1", features = ["io-util"] }
- chrono = "0.4"
- rand = "0.8"
-sysinfo = "0.30"
-portable-pty = "0.8"
-durable-color-resolver = { git = "https://github.com/durableprogramming/durable-color-resolver" }
-serde = { version = "1.0", features = ["derive"] }
-toml = "0.8"
-figlet-rs = "0.1"
- pcap = { version = "0.10", optional = true }
- etherparse = { version = "0.13", optional = true }
- procfs = "0.15"
- netstat2 = { version = "0.11", optional = true }
-
-[features]
-default = []
-experimental-pcap = ["pcap", "etherparse", "netstat2"]
-
-[dev-dependencies]
-tempfile = "3.0"
+members = [
+"crates/druns",
+"crates/durable-run-parallel",
+"crates/durable-run-template",
+"crates/durable-run-config-batch",
+"crates/durable-run-tui-multi",
+"crates/durable-run-input",
+"crates/durable-run-monitor",
+"crates/durable-run-workflow",
+"crates/durable-run-plugin",
+"crates/durable-run-integrations",
+"crates/durable-run-analytics",
+"crates/durable-run-perf",
+"crates/durable-run-testing",
+"crates/durable-run-docs", "scripts/durable-run-parallel",
+]

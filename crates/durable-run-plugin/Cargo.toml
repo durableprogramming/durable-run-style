@@ -1,0 +1,20 @@
+[package]
+name = "durable-run-plugin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+libloading = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+async-trait = "0.1"
+tokio = { version = "1.0", features = ["full"] }
+durable-run-input = { path = "../durable-run-input" }
+durable-run-template = { path = "../durable-run-template" }
+
+[dev-dependencies]
+tempfile = "3.0"
+
+[lib]
+path = "lib.rs"
